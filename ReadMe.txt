@@ -1,33 +1,8 @@
-========================================================================
-    CONSOLE APPLICATION : test_thread01 Project Overview
-========================================================================
+// This threading lib is meant to encapsulate a signalled approach to chaining threads together.
+// Signals from other threads/processes should be able to create a new thread and easily be able 
+// to link a new HW thread or open file or socket to other threads to do processing.
 
-AppWizard has created this test_thread01 application for you.
+Look at the testing code in MultipleFeedsIntoOneThread for lots of examples and test_thread01 
+has a few minor examples of simple threads and chaining threads.
 
-This file contains a summary of what you will find in each of the files that
-make up your test_thread01 application.
-
-
-test_thread01.vcproj
-    This is the main project file for VC++ projects generated using an Application Wizard.
-    It contains information about the version of Visual C++ that generated the file, and
-    information about the platforms, configurations, and project features selected with the
-    Application Wizard.
-
-test_thread01.cpp
-    This is the main application source file.
-
-/////////////////////////////////////////////////////////////////////////////
-Other standard files:
-
-StdAfx.h, StdAfx.cpp
-    These files are used to build a precompiled header (PCH) file
-    named test_thread01.pch and a precompiled types file named StdAfx.obj.
-
-/////////////////////////////////////////////////////////////////////////////
-Other notes:
-
-AppWizard uses "TODO:" comments to indicate parts of the source code you
-should add to or customize.
-
-/////////////////////////////////////////////////////////////////////////////
+Ultimately, this lib will be used in a high-speed networking capacity.
