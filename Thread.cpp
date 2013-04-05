@@ -19,10 +19,14 @@ const int mutexTimeout = 1000;
 Mutex::Mutex() :
       m_isLocked( false )
 {
+#ifdef _WIN32
    m_mutex = CreateMutex( 
         NULL,              // default security attributes
         FALSE,             // initially not owned
         NULL);             // unnamed mutex
+#else
+   pthread_mutex_init( &m_mutex, NULL );
+#endif
 }
 
 //----------------------------------------------------------------
@@ -35,7 +39,11 @@ Mutex::~Mutex()
 
    // WAIT_OBJECT_0
    // WAIT_ABANDONED
+#ifdef _WIN32
    CloseHandle( m_mutex );
+#else
+   pthread_mutex_destroy( &m_mutex );
+#endif
 }
 
 //----------------------------------------------------------------
@@ -46,7 +54,7 @@ bool  Mutex::lock()
    DWORD dwWaitResult = WaitForSingleObject( m_mutex, mutexTimeout );
    // many error conditions including timeout.
 #else
-   pthread_mutex_lock(&m_mutex);
+   pthread_mutex_lock( &m_mutex );
 #endif
    m_isLocked = true;
 
@@ -63,7 +71,7 @@ bool  Mutex::unlock()
    if( ReleaseMutex( m_mutex ) )
       return true;
 #else
-   pthread_mutex_unlock(&m_mutex);
+   pthread_mutex_unlock( &m_mutex );
 #endif
 
    return false;
