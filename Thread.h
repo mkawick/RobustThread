@@ -9,10 +9,15 @@ typedef HANDLE             ThreadId;
 
 #else
 
+#define _MULTI_THREADED
 #include <pthread.h>
+#include <sched.h>
+#include <unistd.h>
+
 typedef pthread_mutex_t    ThreadMutex;
 typedef pthread_t          ThreadId;
 typedef pthread_attr_t     ThreadAttributes;
+#define Sleep(a)           usleep((float)(a) * 1000)
 
 #endif
 
@@ -29,10 +34,21 @@ public:
    bool  unlock();
 
    bool  IsLocked() const { return m_isLocked; }
+   int	 NumPendingLockRequests() const { return m_pendingLockReqs; }
 
 private:
    ThreadMutex    m_mutex;
    bool           m_isLocked;
+   int            m_pendingLockReqs;
+};
+
+class MutexLock
+{
+public:
+	explicit MutexLock( Mutex& mutex ): m_mutex( mutex ) { m_mutex.lock(); }
+	~MutexLock() { m_mutex.unlock(); }
+
+	Mutex& m_mutex;
 };
 
 /////////////////////////////////////////////////////////////////////////////
@@ -93,6 +109,7 @@ public:
    void              SetPriority( ePriority );
    bool              IsRunning() const { return m_running; }
    bool              IsThreadLocked() const { return m_mutex.IsLocked(); }
+   int				 GetSleepTime() const { return m_sleepTime; }
 
    void              Pause() { m_isPaused = true; }
    void              Resume() { m_isPaused = false; }
@@ -133,7 +150,7 @@ private:
    static DWORD  WINAPI  ThreadFunction( void* data );
 #else
    pthread_attr_t    m_attr;
-   static void     ThreadFunction( void* data );
+   static void*      ThreadFunction( void* data );
 #endif
 };
 
@@ -141,7 +158,7 @@ private:
 
    // this is a strange feature, but while rare, the importance of providing a clean
    // mechanism for allowing threads to chain and unchain correctly became obvious during test
-template <class Type> 
+template <typename Type> 
 class ChainedInterface
 {
 public:
@@ -150,22 +167,27 @@ public:
    void  AddOutputChain( ChainedInterface*, bool recurse = true );
    void  RemoveOutputChain( ChainedInterface*, bool recurse = true );
 
-   
-   virtual void AcceptChainData( Type t ) {}
+   // TODO: convert this to a const reference instead
+   virtual bool AcceptChainData( Type t ) { return false; }// a false value means that the data was rejected
 
 protected:
-   Mutex       m_inputListMutex;
-   Mutex       m_outputListMutex;
+   Mutex       m_inputChainListMutex;
+   Mutex       m_outputChainListMutex;
 
    std::list< ChainedInterface* > m_listOfInputs;// threads
    std::list< ChainedInterface* > m_listOfOutputs;// threads
 
    void  CleanupAllChainDependencies();
+   	
+   typedef std::list< ChainedInterface* > base_container;
+   typedef typename base_container::iterator chainedIterator;
+   //typedef ChainedInterface<Type> myType;
+   // typedef std::list< ChainedInterface<Type>* >::iterator myTypeIter;
 };
 
 /////////////////////////////////////////////////////////////////////////////
 
-template <class Type> 
+template <typename Type> 
 class CChainedThread : public CAbstractThread, public ChainedInterface <Type>
 {
 public:

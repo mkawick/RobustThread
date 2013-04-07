@@ -1,13 +1,18 @@
 // test_thread01.cpp : Defines the entry point for the console application.
 //
 
-#include "stdafx.h"
-#include "thread.h"
-#include <conio.h>
+#include "StdAfx.h"
+#if defined(_WIN32)
+	#include <conio.h>
+#else
+	#include <curses.h>
+#endif
+
 #include <iostream>
 #include <list>
 using namespace std;
 
+#include "thread.h"
 #include "MultipleFeedsIntoOneThread.h"
 #pragma warning ( disable: 4996 )
 
@@ -44,7 +49,7 @@ public:
    int GetSize() 
    {
       m_mutex.lock();
-      return m_listOfInts.size();
+      return static_cast<int>( m_listOfInts.size() );
       m_mutex.unlock();
    }
 protected:
@@ -65,9 +70,9 @@ public:
 
    int CallbackFunction()
    {
-      int numToAdd = rand() % 22 + 2;
+      //int numToAdd = rand() % 22 + 2;
 
-      int num = m_listOfInts.size();
+      int num = static_cast<int>( m_listOfInts.size() );
       for( int i=0; i < num; i++ )
       {
          m_listOfInts.push_back( rand() %10 + 1);
@@ -86,9 +91,9 @@ public:
 
    int CallbackFunction()
    {
-      int numToCull = rand() % 22 + 2;
+      //int numToCull = rand() % 22 + 2;
 
-      int num = m_listOfInts.size();
+      int num = static_cast<int>( m_listOfInts.size() );
       for( int i=0; i < num; i++ )
       {
          m_listOfInts.pop_front();
@@ -108,21 +113,26 @@ public:
 
    int CallbackFunction()
    {
-      cout<< "· ChainViewThread ·"  << endl;
+      cout<< " ChainViewThread "  << endl;
       m_items.clear();
       return 1;
    }
-   void AcceptChainData( int value )
+   bool AcceptChainData( int value )
    {
+	  if( m_mutex.IsLocked() == true ) 
+		  return false;
+
       LockMutex();
       m_items.push_back( value );
       UnlockMutex();
+
+	  return true;
    }
 
    int GetNumItems() const
    {
       LockMutex();
-      return m_items.size();
+      return static_cast<int>( m_items.size() );
       UnlockMutex();
    }
 
@@ -172,16 +182,18 @@ public:
       return 0; 
    }
 
-   void AcceptChainData( int value )
+   bool AcceptChainData( int value )
    {
       LockMutex();
       m_items.push_back( value );
       UnlockMutex();
+
+	  return true;
    }
    int GetNumItems() const
    {
       LockMutex();
-      return m_items.size();
+      return static_cast<int>( m_items.size() );
       UnlockMutex();
    }
 
@@ -352,7 +364,7 @@ int  RunChainedThreads03Test()// cleanup test
 
 //-----------------------------------------------
 
-int main()
+int __main()
 {
    cout << "Beginning all tests" << endl;
   /* if( RunCounterThread() == false ) cout << "Counter failed" << endl;
@@ -370,7 +382,8 @@ int main()
    cout << "all tests complete" << endl;
    cout << "press any key to exit" << endl;
    getch();
-	return 0;
+	
+   return 0;
 }
 
 //-----------------------------------------------

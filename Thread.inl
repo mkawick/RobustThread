@@ -1,18 +1,23 @@
+// Thread.inl
 
+#pragma once
 
+//#include <list>
+//using namespace std;
+//#include "thread.h"
 //////////////////////////////////////////////////////////////////////////////////////////////
 
 //----------------------------------------------------------------
 
-template <class Type> 
+template <typename Type> 
 void  ChainedInterface<Type>::AddInputChain( ChainedInterface<Type>* chainedInterfaceObject, bool recurse )
 {
    bool found = false;
-   m_inputListMutex.lock();
+   m_inputChainListMutex.lock();
    {
       // the indentation here is to show that we are in the 'scope' of the locks
-
-      std::list< ChainedInterface* > ::iterator itInputs = m_listOfInputs.begin();
+      
+      chainedIterator itInputs = m_listOfInputs.begin();
       while( itInputs != m_listOfInputs.end() )
       {
          ChainedInterface* interfacePtr = *itInputs++;
@@ -29,7 +34,7 @@ void  ChainedInterface<Type>::AddInputChain( ChainedInterface<Type>* chainedInte
 
       // the indentation here is to show that we are in the 'scope' of the locks
    }
-   m_inputListMutex.unlock();
+   m_inputChainListMutex.unlock();
 
    // notice that we are outside of the locks now.
    if( found == false && recurse == true )
@@ -40,15 +45,15 @@ void  ChainedInterface<Type>::AddInputChain( ChainedInterface<Type>* chainedInte
 
 //----------------------------------------------------------------
 
-template <class Type> 
+template <typename Type> 
 void  ChainedInterface<Type>::RemoveInputChain( ChainedInterface<Type>* chainedInterfaceObject, bool recurse )
 {
    bool found = false;
-   m_inputListMutex.lock();
+   m_inputChainListMutex.lock();
    {
       // the indentation here is to show that we are in the 'scope' of the locks
 
-      std::list< ChainedInterface* > ::iterator itInputs = m_listOfInputs.begin();
+      chainedIterator itInputs = m_listOfInputs.begin();
       while( itInputs != m_listOfInputs.end() )
       {
          ChainedInterface* interfacePtr = *itInputs;
@@ -65,7 +70,7 @@ void  ChainedInterface<Type>::RemoveInputChain( ChainedInterface<Type>* chainedI
 
       // the indentation here is to show that we are in the 'scope' of the locks
    }
-   m_inputListMutex.unlock();
+   m_inputChainListMutex.unlock();
 
    // notice that we are outside of the locks now.
    if( found == true && recurse == true )
@@ -76,15 +81,15 @@ void  ChainedInterface<Type>::RemoveInputChain( ChainedInterface<Type>* chainedI
 
 //----------------------------------------------------------------
 
-template <class Type> 
+template <typename Type> 
 void  ChainedInterface<Type>::AddOutputChain( ChainedInterface<Type>* chainedInterfaceObject, bool recurse )
 {
    bool found = false;
-   m_outputListMutex.lock();
+   m_outputChainListMutex.lock();
    {
       // the indentation here is to show that we are in the 'scope' of the locks
 
-      std::list< ChainedInterface* > ::iterator itOutputs = m_listOfOutputs.begin();
+      chainedIterator itOutputs = m_listOfOutputs.begin();
       while( itOutputs != m_listOfOutputs.end() )
       {
          ChainedInterface* interfacePtr = *itOutputs++;
@@ -102,7 +107,7 @@ void  ChainedInterface<Type>::AddOutputChain( ChainedInterface<Type>* chainedInt
 
       // the indentation here is to show that we are in the 'scope' of the locks
    }
-   m_outputListMutex.unlock();
+   m_outputChainListMutex.unlock();
 
    // notice that we are outside of the locks now.
    if( found == false && recurse == true )
@@ -113,15 +118,15 @@ void  ChainedInterface<Type>::AddOutputChain( ChainedInterface<Type>* chainedInt
 
 //----------------------------------------------------------------
 
-template <class Type> 
+template <typename Type> 
 void  ChainedInterface<Type>::RemoveOutputChain( ChainedInterface<Type>* chainedInterfaceObject, bool recurse )
 {
    bool found = false;
-   m_outputListMutex.lock();
+   m_outputChainListMutex.lock();
    {
       // the indentation here is to show that we are in the 'scope' of the locks
 
-      std::list< ChainedInterface* > ::iterator itOutputs = m_listOfOutputs.begin();
+      chainedIterator itOutputs = m_listOfOutputs.begin();
       while( itOutputs != m_listOfOutputs.end() )
       {
          ChainedInterface* interfacePtr = *itOutputs;
@@ -138,7 +143,7 @@ void  ChainedInterface<Type>::RemoveOutputChain( ChainedInterface<Type>* chained
 
       // the indentation here is to show that we are in the 'scope' of the locks
    }
-   m_outputListMutex.unlock();
+   m_outputChainListMutex.unlock();
 
    // notice that we are outside of the locks now.
    if( found == true && recurse == true )
@@ -149,14 +154,14 @@ void  ChainedInterface<Type>::RemoveOutputChain( ChainedInterface<Type>* chained
 
 //----------------------------------------------------------------
 
-template <class Type> 
+template <typename Type> 
 void  ChainedInterface<Type>::CleanupAllChainDependencies()
 {
-   m_inputListMutex.lock();
+   m_inputChainListMutex.lock();
    {
       // the indentation here is to show that we are in the 'scope' of the locks
 
-      std::list< ChainedInterface* > ::iterator itInputs = m_listOfInputs.begin();
+      chainedIterator itInputs = m_listOfInputs.begin();
       while( itInputs != m_listOfInputs.end() )
       {
          ChainedInterface* interfacePtr = *itInputs++;
@@ -166,15 +171,15 @@ void  ChainedInterface<Type>::CleanupAllChainDependencies()
 
       // the indentation here is to show that we are in the 'scope' of the locks
    }
-   m_inputListMutex.unlock();
+   m_inputChainListMutex.unlock();
 
    //-------------------------------
 
-   m_outputListMutex.lock();
+   m_outputChainListMutex.lock();
    {
       // the indentation here is to show that we are in the 'scope' of the locks
 
-      std::list< ChainedInterface* > ::iterator itOutputs = m_listOfOutputs.begin();
+      chainedIterator itOutputs = m_listOfOutputs.begin();
       while( itOutputs != m_listOfOutputs.end() )
       {
          ChainedInterface* interfacePtr = *itOutputs++;
@@ -184,40 +189,40 @@ void  ChainedInterface<Type>::CleanupAllChainDependencies()
 
       // the indentation here is to show that we are in the 'scope' of the locks
    }
-   m_outputListMutex.unlock();
+   m_outputChainListMutex.unlock();
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////
 
-template <class Type> 
+template <typename Type> 
 CChainedThread<Type>::CChainedThread( bool needsThreadProtection, int sleepTime, bool paused ) : CAbstractThread( needsThreadProtection, sleepTime, paused )
 {
 }
 
 //----------------------------------------------------------------
 
-template <class Type> 
+template <typename Type> 
 void  CChainedThread<Type>::CallbackOnCleanup()
 {
-   CleanupAllChainDependencies();
+   CChainedThread<Type>::CleanupAllChainDependencies();
    CAbstractThread::CallbackOnCleanup();
 }
 
 //----------------------------------------------------------------
 
-template <class Type> 
+template <typename Type> 
 int       CChainedThread<Type>::CallbackFunction()
 {
-   m_inputListMutex.lock();
+   CChainedThread<Type>::m_inputChainListMutex.lock();
    ProcessInputFunction();
-   m_inputListMutex.unlock();
+   CChainedThread<Type>::m_inputChainListMutex.unlock();
 
    //-------------------------------
 
-   m_outputListMutex.lock();
+   CChainedThread<Type>::m_outputChainListMutex.lock();
    ProcessOutputFunction();
-   m_outputListMutex.unlock();
+   CChainedThread<Type>::m_outputChainListMutex.unlock();
 
    return 0;
 }
