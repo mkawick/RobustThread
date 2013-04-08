@@ -14,6 +14,7 @@
 #include <deque>
 #include "Thread.h"
 using namespace std;
+using namespace Threading;
 
 const int timeoutUponDeleteMs = 1000;
 const int mutexTimeout = 1000;

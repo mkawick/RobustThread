@@ -20,6 +20,7 @@ using namespace std;
 
 #include "Thread.h"
 #include "MultipleFeedsIntoOneThread.h"
+using namespace Threading;
 
 
 int   ChooseRandomTimeout( int low, int high )

@@ -15,6 +15,8 @@ using namespace std;
 
 #include "thread.h"
 #include "MultipleFeedsIntoOneThread.h"
+using namespace Threading;
+
 #pragma warning ( disable: 4996 )
 
 //-----------------------------------------------
