@@ -171,7 +171,7 @@ public:
    virtual bool AcceptChainData( Type t ) { return false; }// a false value means that the data was rejected
 
 protected:
-	struct OutputChain
+	struct OutputChain // a trick here is to read from the front and push to the back. No mutex?
 	{
 		OutputChain() : m_interface( NULL ) {}
 		OutputChain( ChainedInterface* obj ) : m_interface( obj ) {}
@@ -181,6 +181,7 @@ protected:
 
 		ChainedInterface*	m_interface;
 		std::deque<Type>	m_data;
+		//Mutex				m_mutex;
 	};
 protected:
    Mutex       m_inputChainListMutex;

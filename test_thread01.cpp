@@ -370,7 +370,7 @@ int  RunChainedThreads03Test()// cleanup test
 int __main()
 {
    cout << "Beginning all tests" << endl;
-   if( RunCounterThread() == false ) cout << "Counter failed" << endl;
+ /*  if( RunCounterThread() == false ) cout << "Counter failed" << endl;
    if( RunInsertThread() == false ) cout << "Insertion failed" << endl;
 
    
@@ -378,7 +378,7 @@ int __main()
 
    if( RunChainedThreads02Test() == false ) cout << "Chained 02 failed" << endl;
 
-   if( RunChainedThreads03Test() == false ) cout << "Chained 03 failed" << endl;
+   if( RunChainedThreads03Test() == false ) cout << "Chained 03 failed" << endl;*/
 
    if( RunChainedThreads_300_Test() == false ) cout << "RunChainedThreads_300_Test failed" << endl;
 
