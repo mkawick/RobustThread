@@ -10,6 +10,7 @@
 
 #include <iostream>
 #include <list>
+#include <deque>
 using namespace std;
 
 #include "thread.h"
@@ -166,10 +167,11 @@ public:
       LockMutex();
 
          //int num = m_item.size();
-         std::list< ChainedInterface* > ::iterator itOutputs = m_listOfOutputs.begin();
+         ChainedOutputIteratorType itOutputs = m_listOfOutputs.begin();
          while( itOutputs != m_listOfOutputs.end() )
          {
-            ChainedInterface* chainedInterface = *itOutputs++;
+            OutputChain& chainedOutput = *itOutputs++;
+		    ChainedInterface* chainedInterface = chainedOutput.m_interface;
             std::list< int > ::iterator it = m_items.begin();
             while( it != m_items.end() )
             {
@@ -214,10 +216,11 @@ public:
    int       ProcessOutputFunction() 
    { 
       //cout<< "· ChainSupplyThread::ProcessOutputFunction ·"  << endl;
-      std::list< ChainedInterface* > ::iterator itOutputs = m_listOfOutputs.begin();
+      ChainedOutputIteratorType itOutputs = m_listOfOutputs.begin();
       while( itOutputs != m_listOfOutputs.end() )
       {
-         ChainedInterface* chainedInterface = *itOutputs++;
+         OutputChain& chainedOutput = *itOutputs++;
+		 ChainedInterface* chainedInterface = chainedOutput.m_interface;
          for( int i=0; i< 10; i++ )
          {
             chainedInterface->AcceptChainData( rand() % 25 + 1 );
@@ -367,15 +370,15 @@ int  RunChainedThreads03Test()// cleanup test
 int __main()
 {
    cout << "Beginning all tests" << endl;
-  /* if( RunCounterThread() == false ) cout << "Counter failed" << endl;
+   if( RunCounterThread() == false ) cout << "Counter failed" << endl;
    if( RunInsertThread() == false ) cout << "Insertion failed" << endl;
 
    
-   if( RunChainedThreads01Test() == false ) cout << "Chained 01 failed" << endl;*/
+   if( RunChainedThreads01Test() == false ) cout << "Chained 01 failed" << endl;
 
-   //if( RunChainedThreads02Test() == false ) cout << "Chained 02 failed" << endl;
+   if( RunChainedThreads02Test() == false ) cout << "Chained 02 failed" << endl;
 
-   //if( RunChainedThreads03Test() == false ) cout << "Chained 03 failed" << endl;
+   if( RunChainedThreads03Test() == false ) cout << "Chained 03 failed" << endl;
 
    if( RunChainedThreads_300_Test() == false ) cout << "RunChainedThreads_300_Test failed" << endl;
 

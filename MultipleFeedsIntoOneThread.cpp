@@ -36,7 +36,7 @@ int   ChooseRandomTimeout( int low, int high )
 class ChainViewThread300 : public CChainedThread< int >
 {
 public:
-   ChainViewThread300( int timeOut ) : CChainedThread( true, timeOut ), m_countIn( 0 ){}
+   ChainViewThread300( int timeOut = 100 ) : CChainedThread( true, timeOut ), m_countIn( 0 ){}
 
    int		CallbackFunction()
    {
@@ -114,10 +114,11 @@ public:
    {
 	  MutexLock lock( m_mutex );
          
-         std::list< ChainedInterface* > ::iterator itOutputs = m_listOfOutputs.begin();
+         ChainedOutputIteratorType itOutputs = m_listOfOutputs.begin();
          //while( itOutputs != m_listOfOutputs.end() )
          {
-            ChainedInterface* chainedInterface = *itOutputs++;
+			OutputChain& chainedOutput = *itOutputs++;
+			ChainedInterface* chainedInterface = chainedOutput.m_interface;
 			int num = static_cast<int>( m_itemsOut.size() );
 			int numAcceptedItems = 0;
 			if( num > 0 )
@@ -229,10 +230,12 @@ public:
 
    int       ProcessOutputFunction() 
    {
-      std::list< ChainedInterface* > ::iterator itOutputs = m_listOfOutputs.begin();
+      //ChainedIteratorType	itOutputs = m_listOfOutputs.begin();
+	  ChainedOutputIteratorType itOutputs = m_listOfOutputs.begin();
       while( itOutputs != m_listOfOutputs.end() )
       {
-         ChainedInterface* chainedInterface = *itOutputs++;
+         OutputChain& chainedOutput = *itOutputs++;
+		 ChainedInterface* chainedInterface = chainedOutput.m_interface;
          int num = rand() % 10 + 1;
          for( int i=0; i< num; i++ )
          {
@@ -475,6 +478,8 @@ void	TestOnly10Suppliers( ChainSupplyThread300** arrayOfSuppliers, int numSuppli
    cout << "Testing only 10 suppliers start" << endl;
 
    ClearAllCounts( arrayOfSuppliers, numSuppliers, middleSupply, viewSupply );
+   middleSupply->Resume();
+   viewSupply->Resume();
 
      PauseSuppliers( arrayOfSuppliers, numSuppliers );
      Sleep( 2000 );
@@ -545,7 +550,7 @@ void Run300WithRandomDeletion( ChainSupplyThread300** arrayOfSuppliers, int numS
 
 //------------------------------------------------------------------------------------------------------
 
-void	RandomlyArrivingAndLeavingConnections(ChainSupplyThread300** arrayOfSuppliers, int numSuppliers, ChainMiddleSupplyThread300* middleSupply, ChainViewThread300* viewSupply )
+void	RandomlyArrivingAndLeavingConnections( ChainSupplyThread300** arrayOfSuppliers, int numSuppliers, ChainMiddleSupplyThread300* middleSupply, ChainViewThread300* viewSupply )
 {
 cout << "Prep for creating randomly coming and going clients 1 " << endl;
 ClearAllCounts( arrayOfSuppliers, numSuppliers, middleSupply, viewSupply );
@@ -603,6 +608,71 @@ OutputStuckThreads( arrayOfSuppliers, numSuppliers );
 
 //------------------------------------------------------------------------------------------------------
 
+void	MultipleOutputConnections( ChainSupplyThread300** arrayOfSuppliers, int numSuppliers, ChainMiddleSupplyThread300* middleSupply, ChainViewThread300* viewSupply )
+{
+   cout << "-------------------------------------------------------" << endl;
+   cout << "Adding muliple output connections start" << endl;
+   
+   PauseSuppliers( arrayOfSuppliers, numSuppliers );
+
+   ClearAllCounts( arrayOfSuppliers, numSuppliers, middleSupply, viewSupply );
+
+   middleSupply->Pause();
+   const int numToTest = 100;
+
+   ChainViewThread300** arrayOfOutputThreads = new ChainViewThread300*[ numToTest ];
+   for( int i=0; i< numToTest; i++ )
+   {
+	   arrayOfOutputThreads[i] = new ChainViewThread300( 500 + i% 20 ); // adding some variance
+	   arrayOfOutputThreads[i]->Pause();
+	   middleSupply->AddOutputChain( arrayOfOutputThreads[i] );
+   }
+
+ /*  for( int i=0; i<numToTest; i++ )
+   {
+	  middleSupply->AcceptChainData( i% 10 );
+   }*/
+
+   cout << "Num put in middle = " << numToTest << " and number stored in middle: received = " << middleSupply->GetCountIn();
+   cout << ", sent = " << middleSupply->GetCountOut() << ", enqueue in = " << middleSupply->GetNumIn() << ", enqueue out = ";
+   cout << middleSupply->GetNumOut() << endl;
+
+   cout << "Now let it push it's data to the view " << endl;
+   middleSupply->Resume();
+   Sleep( 5000 );
+
+  /* cout << "Num put in middle = " << numToTest << " and number stored in middle: received = " << middleSupply->GetCountIn();
+   cout << ", sent = " << middleSupply->GetCountOut() << ", enqueue in = " << middleSupply->GetNumIn() << ", enqueue out = ";
+   cout << middleSupply->GetNumOut() << endl;
+   DisplayCounts( arrayOfSuppliers, numSuppliers, middleSupply, viewSupply );
+
+   OutputStuckThreads( arrayOfSuppliers, numSuppliers );
+
+   middleSupply->ClearCountIn();
+   middleSupply->ClearCountOut();
+   middleSupply->ClearPending();*/
+
+   middleSupply->Pause();
+   for( int i=0; i< numToTest; i++ )
+   {
+	   middleSupply->RemoveOutputChain( arrayOfOutputThreads[i] );
+	   arrayOfOutputThreads[i]->Pause();
+   }
+
+   for( int i=0; i< numToTest; i++ )
+   {
+	   arrayOfOutputThreads[i]->Cleanup();
+	   arrayOfOutputThreads[i] = 0;
+   }
+
+   delete [] arrayOfOutputThreads;
+
+   DisplayCounts( arrayOfSuppliers, numSuppliers, middleSupply, viewSupply );
+   cout << "Adding muliple output connections end" << endl;
+}
+
+//------------------------------------------------------------------------------------------------------
+
 int  RunChainedThreads_300_Test()
 {
    int success = true;
@@ -645,6 +715,10 @@ int  RunChainedThreads_300_Test()
 	  cout << "-------------------------------------------------------" << endl;
 
       RandomlyArrivingAndLeavingConnections( arrayOfSuppliers, numSuppliers, middleSupply, viewSupply );
+
+	  cout << "-------------------------------------------------------" << endl;
+
+      MultipleOutputConnections( arrayOfSuppliers, numSuppliers, middleSupply, viewSupply );
       
 
 	  cout << "-------------------------------------------------------" << endl;

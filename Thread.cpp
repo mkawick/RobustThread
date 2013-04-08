@@ -6,10 +6,14 @@
 //
 
 #include "StdAfx.h"
+#if defined(_WIN32)
+#else
+#endif
+
 #include <assert.h>
-
+#include <deque>
 #include "Thread.h"
-
+using namespace std;
 
 const int timeoutUponDeleteMs = 1000;
 const int mutexTimeout = 1000;
@@ -17,9 +21,10 @@ const int mutexTimeout = 1000;
 //////////////////////////////////////////////////////////////////////////////////////////////
 
 Mutex::Mutex() :
-      m_isLocked( false )
+      m_isLocked( false ),
+	  m_pendingLockReqs( 0 )
 {
-#ifdef _WIN32
+#ifdef WIN32
    m_mutex = CreateMutex( 
         NULL,              // default security attributes
         FALSE,             // initially not owned
@@ -33,15 +38,15 @@ Mutex::Mutex() :
 
 Mutex::~Mutex()
 {
-   DWORD dwWaitResult = WaitForSingleObject( 
-            m_mutex,    
-            timeoutUponDeleteMs);  // time-out interval
-
    // WAIT_OBJECT_0
    // WAIT_ABANDONED
-#ifdef _WIN32
+#ifdef WIN32
+   DWORD dwWaitResult = WaitForSingleObject(
+                                            m_mutex,
+                                            timeoutUponDeleteMs);  // time-out interval
    CloseHandle( m_mutex );
 #else
+   //pthread_join( m)
    pthread_mutex_destroy( &m_mutex );
 #endif
 }
@@ -50,7 +55,8 @@ Mutex::~Mutex()
 
 bool  Mutex::lock()
 {
-#ifdef _WIN32
+   m_pendingLockReqs++;
+#ifdef WIN32
    DWORD dwWaitResult = WaitForSingleObject( m_mutex, mutexTimeout );
    // many error conditions including timeout.
 #else
@@ -66,8 +72,9 @@ bool  Mutex::lock()
 bool  Mutex::unlock()
 {
    m_isLocked = false;
+   m_pendingLockReqs--;
 
-#ifdef _WIN32
+#ifdef WIN32
    if( ReleaseMutex( m_mutex ) )
       return true;
 #else
@@ -81,14 +88,17 @@ bool  Mutex::unlock()
 //////////////////////////////////////////////////////////////////////////////////////////////
 
 CAbstractThread::CAbstractThread( bool needsThreadProtections, int sleepTime, bool paused ) : 
-                  m_thread( NULL ), 
-                  m_threadId( 0 ), 
+                  m_thread( NULL ),
                   m_needsThreadProtection( needsThreadProtections ), 
                   m_sleepTime( sleepTime ),
                   m_running( false ),
                   m_markedForCleanup( false ),
                   m_isPaused( paused )
 {
+#ifdef WIN32
+   m_threadId = 0;
+#endif
+   
    CreateThread();
 }
 
@@ -96,51 +106,62 @@ CAbstractThread::CAbstractThread( bool needsThreadProtections, int sleepTime, bo
 
 CAbstractThread::~CAbstractThread() {}
 
+//----------------------------------------------------------------
+
 void  CAbstractThread::Cleanup()
 {
    CallbackOnCleanup();
    DestroyThread();
+   
+#ifndef WIN32
+   void* result;
+   pthread_join( m_thread, &result );
+#endif
 }
 
 //----------------------------------------------------------------
 
 void  CAbstractThread::SetPriority( ePriority priority )
 {
+#ifdef WIN32
+   int winPriority = THREAD_PRIORITY_NORMAL;
+#else
+   sched_param param;
+   param.sched_priority = ( sched_get_priority_max( SCHED_OTHER ) + sched_get_priority_min( SCHED_OTHER ) ) /2;
+#endif
+   
    switch( priority )
    {
    case ePriorityLow:
-#ifdef _WIN32
-      SetThreadPriority( m_thread, THREAD_PRIORITY_BELOW_NORMAL );
+#ifdef WIN32
+      winPriority = THREAD_PRIORITY_BELOW_NORMAL;
 #else
-      sched_param param;
-      param.sched_priority = PRIORITY_MIN;
-      pthread_setschedparam( SCHED_OTHER, param );
+      param.sched_priority = sched_get_priority_min( SCHED_OTHER );
+      
 #endif
       break;
 
    case ePriorityNormal:
-#ifdef _WIN32
-      SetThreadPriority( m_thread, THREAD_PRIORITY_NORMAL );
-#else
-      sched_param param;
-      param.sched_priority = ( PRIORITY_MAX + PRIORITY_MIN ) /2;
-      pthread_setschedparam( SCHED_OTHER, param );
-#endif
       break;
 
    case ePriorityHigh:
-#ifdef _WIN32
-      SetThreadPriority( m_thread, THREAD_PRIORITY_ABOVE_NORMAL );
+#ifdef WIN32
+      winPriority = THREAD_PRIORITY_ABOVE_NORMAL;
 #else
-      sched_param param;
-      param.sched_priority = PRIORITY_MAX;
-      pthread_setschedparam( SCHED_OTHER, param );
+      param.sched_priority = sched_get_priority_max( SCHED_OTHER );
 #endif
       break;
 
    default:
       assert( 0 );
    }
+   
+#ifdef WIN32
+   SetThreadPriority( m_thread, winPriority );
+#else
+   //sched_param param;
+   pthread_setschedparam( m_thread, SCHED_OTHER, &param );
+#endif
 }
 
 //----------------------------------------------------------------
@@ -148,10 +169,10 @@ void  CAbstractThread::SetPriority( ePriority priority )
 int CAbstractThread::CreateThread()
 {
    int threadError = 0;
-#ifndef _WIN32
+#ifndef WIN32
    pthread_attr_init( &m_attr );
 	pthread_attr_setdetachstate( &m_attr, PTHREAD_CREATE_DETACHED );
-	threadError = pthread_create( &m_threadId, &m_attr, &CAbstractThread::ThreadFunction, this );
+	threadError = pthread_create( &m_thread, &m_attr, &CAbstractThread::ThreadFunction, (void*)this );
    if( threadError == 0 )
       m_running = true;
 #else
@@ -186,10 +207,10 @@ int CAbstractThread::DestroyThread()
 
 //----------------------------------------------------------------
 
-#ifdef _WIN32
+#ifdef WIN32
 DWORD    CAbstractThread::ThreadFunction( void* data )
 #else
-void     CAbstractThread::ThreadFunction( void* data )
+void*    CAbstractThread::ThreadFunction( void* data )
 #endif
 {
    CAbstractThread* thread = reinterpret_cast< CAbstractThread* > ( data );
@@ -199,11 +220,9 @@ void     CAbstractThread::ThreadFunction( void* data )
    // can be scheduled in such a way so that this threadFunction is invoked before creation
    // completes which leads to a crash.
    const int defaultSleepTime = 50;
-#ifdef _WIN32       
-         Sleep( defaultSleepTime );
-#else
-         sleep( (float)(defaultSleepTime) * 0.001 );
-#endif
+    
+   Sleep( defaultSleepTime );
+
    while( thread->m_running )
    {
       if( thread->m_isPaused == false )// TODO, should I sleep if not active and how log if so? What if the SleepTime is not set.
@@ -228,28 +247,29 @@ void     CAbstractThread::ThreadFunction( void* data )
 
       if( thread->m_sleepTime )
       {
-#ifdef _WIN32       
          Sleep( thread->m_sleepTime );
-#else
-         sleep( (float)(thread->m_sleepTime) * 0.001 );
-#endif
       }
    }
 
    if( thread->m_markedForCleanup )
    {
-#ifdef _WIN32
+#ifdef WIN32
       DWORD dwWaitResult = WaitForSingleObject(  thread->m_thread, timeoutUponDeleteMs );
       CloseHandle( thread->m_thread );
 #else
-      int ret = pthread_cancel( thread->m_threadId );
+      pthread_cancel( thread->m_thread );
 #endif
    }
 
+   while( thread->m_mutex.NumPendingLockRequests() > 0 )
+	   Sleep( 200 );
    delete thread;
 
-#ifdef _WIN32
+#ifdef WIN32
    return 0;
+#else
+   pthread_exit( 0 );
+   return NULL;
 #endif
 }
 

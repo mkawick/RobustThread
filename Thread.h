@@ -171,18 +171,31 @@ public:
    virtual bool AcceptChainData( Type t ) { return false; }// a false value means that the data was rejected
 
 protected:
+	struct OutputChain
+	{
+		OutputChain() : m_interface( NULL ) {}
+		OutputChain( ChainedInterface* obj ) : m_interface( obj ) {}
+
+		void	AddData( Type t) { m_data.push_back( t ); }
+		Type	RemoveData() { Type t = m_data.front(); m_data.pop_front(); return t; }
+
+		ChainedInterface*	m_interface;
+		std::deque<Type>	m_data;
+	};
+protected:
    Mutex       m_inputChainListMutex;
    Mutex       m_outputChainListMutex;
 
-   std::list< ChainedInterface* > m_listOfInputs;// threads
-   std::list< ChainedInterface* > m_listOfOutputs;// threads
+   std::list< ChainedInterface* >	m_listOfInputs;// threads
+   std::list< OutputChain >			m_listOfOutputs;// threads
 
    void  CleanupAllChainDependencies();
    	
-   typedef std::list< ChainedInterface* > base_container;
-   typedef typename base_container::iterator chainedIterator;
-   //typedef ChainedInterface<Type> myType;
-   // typedef std::list< ChainedInterface<Type>* >::iterator myTypeIter;
+   typedef std::list< ChainedInterface* >		base_container;
+   typedef typename base_container::iterator	ChainedIteratorType;
+
+   typedef std::list< OutputChain >						base_output_container;
+   typedef typename base_output_container::iterator		ChainedOutputIteratorType;
 };
 
 /////////////////////////////////////////////////////////////////////////////

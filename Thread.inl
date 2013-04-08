@@ -17,7 +17,7 @@ void  ChainedInterface<Type>::AddInputChain( ChainedInterface<Type>* chainedInte
    {
       // the indentation here is to show that we are in the 'scope' of the locks
       
-      chainedIterator itInputs = m_listOfInputs.begin();
+      ChainedIteratorType itInputs = m_listOfInputs.begin();
       while( itInputs != m_listOfInputs.end() )
       {
          ChainedInterface* interfacePtr = *itInputs++;
@@ -53,7 +53,7 @@ void  ChainedInterface<Type>::RemoveInputChain( ChainedInterface<Type>* chainedI
    {
       // the indentation here is to show that we are in the 'scope' of the locks
 
-      chainedIterator itInputs = m_listOfInputs.begin();
+      ChainedIteratorType itInputs = m_listOfInputs.begin();
       while( itInputs != m_listOfInputs.end() )
       {
          ChainedInterface* interfacePtr = *itInputs;
@@ -89,10 +89,11 @@ void  ChainedInterface<Type>::AddOutputChain( ChainedInterface<Type>* chainedInt
    {
       // the indentation here is to show that we are in the 'scope' of the locks
 
-      chainedIterator itOutputs = m_listOfOutputs.begin();
+      ChainedOutputIteratorType itOutputs = m_listOfOutputs.begin();
       while( itOutputs != m_listOfOutputs.end() )
       {
-         ChainedInterface* interfacePtr = *itOutputs++;
+		 const OutputChain& chain = *itOutputs++;
+		 ChainedInterface* interfacePtr = chain.m_interface;
          if( interfacePtr == chainedInterfaceObject )
          {
             found = true;
@@ -102,7 +103,7 @@ void  ChainedInterface<Type>::AddOutputChain( ChainedInterface<Type>* chainedInt
 
       if( found == false )// insert into the list
       {
-         m_listOfOutputs.push_back( chainedInterfaceObject );
+         m_listOfOutputs.push_back( OutputChain( chainedInterfaceObject ) );
       }
 
       // the indentation here is to show that we are in the 'scope' of the locks
@@ -126,10 +127,11 @@ void  ChainedInterface<Type>::RemoveOutputChain( ChainedInterface<Type>* chained
    {
       // the indentation here is to show that we are in the 'scope' of the locks
 
-      chainedIterator itOutputs = m_listOfOutputs.begin();
+      ChainedOutputIteratorType itOutputs = m_listOfOutputs.begin();
       while( itOutputs != m_listOfOutputs.end() )
       {
-         ChainedInterface* interfacePtr = *itOutputs;
+         OutputChain& chainedOutput = *itOutputs;
+		 ChainedInterface* interfacePtr = chainedOutput.m_interface;
          if( interfacePtr == chainedInterfaceObject )
          {
             found = true;
@@ -161,7 +163,7 @@ void  ChainedInterface<Type>::CleanupAllChainDependencies()
    {
       // the indentation here is to show that we are in the 'scope' of the locks
 
-      chainedIterator itInputs = m_listOfInputs.begin();
+      ChainedIteratorType itInputs = m_listOfInputs.begin();
       while( itInputs != m_listOfInputs.end() )
       {
          ChainedInterface* interfacePtr = *itInputs++;
@@ -179,10 +181,11 @@ void  ChainedInterface<Type>::CleanupAllChainDependencies()
    {
       // the indentation here is to show that we are in the 'scope' of the locks
 
-      chainedIterator itOutputs = m_listOfOutputs.begin();
+      ChainedOutputIteratorType itOutputs = m_listOfOutputs.begin();
       while( itOutputs != m_listOfOutputs.end() )
       {
-         ChainedInterface* interfacePtr = *itOutputs++;
+		 OutputChain& chainedOutput = *itOutputs++;
+		 ChainedInterface* interfacePtr = chainedOutput.m_interface;
          interfacePtr->RemoveInputChain( this );// note the input
       }
       m_listOfOutputs.clear();
