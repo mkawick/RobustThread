@@ -36,16 +36,21 @@ int   ChooseRandomTimeout( int low, int high )
 class ChainViewThread300 : public CChainedThread< int >
 {
 public:
-   ChainViewThread300( int timeOut = 100 ) : CChainedThread( true, timeOut ), m_countIn( 0 ){}
+   ChainViewThread300( int timeOut = 100 ) : 
+      CChainedThread( true, timeOut ), 
+      m_countIn( 0 ),
+      m_totalOfItemsIn( 0 ) {}
 
    int		CallbackFunction()
    {
       //cout<< "· ChainViewThread300 ·"  << endl;
-	  int num = m_items.size();
-      //while( num -- )
-	  {
-		  m_items.clear();
-	  }
+      int num = m_items.size();
+      for( int i=0; i<num; i++ )
+      {
+         m_totalOfItemsIn += m_items[i];
+      }
+      m_items.clear();
+
       return 1;
    }
    bool		AcceptChainData( int value )
@@ -74,20 +79,23 @@ public:
    void		ClearCountIn() { m_countIn = 0; }
    void		ClearPending() 
    {
-	  LockMutex();
+      LockMutex();
       m_items.clear();
       UnlockMutex();
    }
    int		GetCountIn() const { return m_countIn; }
-
+   int		GetTotal() const { return m_totalOfItemsIn; }
 
 private:
    ~ChainViewThread300() {}
 
 private:
-   deque< int > m_items;
-   int m_countIn;
+   deque< int >   m_items;
+   int            m_countIn;
+   int            m_totalOfItemsIn;
 };
+
+//-----------------------------------------------
 
 class ChainMiddleSupplyThread300 : public CChainedThread< int >
 {
@@ -202,17 +210,77 @@ public:
    int	 GetCountIn() const { return m_countIn; }
    int   GetCountOut() const { return m_countOut; }
 
-private:
+protected:
    ~ChainMiddleSupplyThread300() {}
 
-private:
+protected:
    deque< int >		m_itemsIn;
    deque< int >		m_itemsOut;
-   mutable Mutex	m_inputMutex;
-   int				m_countIn;
-   int				m_countOut;
-   int m_numTimeItemsMovedIntoOut;
-   int m_numTimesThatQueueHadItemsInIt;
+   mutable Mutex	   m_inputMutex;
+   int				   m_countIn;
+   int				   m_countOut;
+   int               m_numTimeItemsMovedIntoOut;
+   int               m_numTimesThatQueueHadItemsInIt;
+};
+
+//-----------------------------------------------
+
+class ChainMiddleSupplyThread300_MultiThreadOutput : public ChainMiddleSupplyThread300
+{
+public:
+   ChainMiddleSupplyThread300_MultiThreadOutput( int timeout ) :
+      ChainMiddleSupplyThread300( timeout )
+   {
+   }
+   int		 ProcessInputFunction()
+   {
+	   m_inputMutex.lock(); LockMutex();
+      ChainedOutputIteratorType itOutputs = m_listOfOutputs.begin();
+      while( itOutputs != m_listOfOutputs.end() )
+      {
+		   OutputChain& chainedOutput = *itOutputs++;
+		   ChainedInterface* chainedInterface = chainedOutput.m_interface;
+         std::copy( m_itemsIn.begin(), m_itemsIn.end(), inserter( chainedOutput.m_data ));
+      }
+	   m_itemsIn.clear();
+	   UnlockMutex(); m_inputMutex.unlock();
+
+	   return 0;
+   }
+   int       ProcessOutputFunction() 
+   {
+	  MutexLock lock( m_mutex );
+         
+         ChainedOutputIteratorType itOutputs = m_listOfOutputs.begin();
+         while( itOutputs != m_listOfOutputs.end() )
+         {
+			   OutputChain& chainedOutput = *itOutputs++;
+			   ChainedInterface* chainedInterface = chainedOutput.m_interface;
+            std::deque< int >& deque = chainedOutput.m_data;
+
+            int num = static_cast<int>( deque.size() );
+			   int numAcceptedItems = 0;
+			   if( num > 0 )
+				   m_numTimesThatQueueHadItemsInIt ++;
+
+			   for( int i=0; i<num; i++ )
+			   {
+				   int val = deque.front();
+				   if( chainedInterface->AcceptChainData( val ) == false )
+				   {
+					   break;
+				   }
+				   numAcceptedItems ++;
+				   deque.pop_front();
+			   }
+			   m_countOut += numAcceptedItems;
+			   if( numAcceptedItems > 0 )
+				   m_numTimeItemsMovedIntoOut++;
+         }
+         m_itemsOut.clear();
+
+      return 0; 
+   }
 };
 
 //-----------------------------------------------
@@ -224,28 +292,30 @@ public:
       CChainedThread( false, timeOut, true ),
       m_count( 0 ),
       m_id( id ),
-      m_startedAdd( false )
+      m_startedAdd( false ),
+      m_totalValueSupplied( 0 )
    { 
    }
 
    int       ProcessOutputFunction() 
    {
       //ChainedIteratorType	itOutputs = m_listOfOutputs.begin();
-	  ChainedOutputIteratorType itOutputs = m_listOfOutputs.begin();
+      ChainedOutputIteratorType itOutputs = m_listOfOutputs.begin();
       while( itOutputs != m_listOfOutputs.end() )
       {
          OutputChain& chainedOutput = *itOutputs++;
-		 ChainedInterface* chainedInterface = chainedOutput.m_interface;
+         ChainedInterface* chainedInterface = chainedOutput.m_interface;
          int num = rand() % 10 + 1;
          for( int i=0; i< num; i++ )
          {
             m_startedAdd = true;
-			int value = m_count % 25 + 1;
-			bool result = chainedInterface->AcceptChainData( value );
+            int value = m_count % 25 + 1;
+            bool result = chainedInterface->AcceptChainData( value );
             m_startedAdd = false;
-			if( result == false )
-				break;
+            if( result == false )
+	            break;
             m_count++;
+            m_totalValueSupplied += value;
          }
       }
       return 0; 
@@ -253,6 +323,7 @@ public:
 
    void		ClearCount() { m_count = 0; }
    int		GetCount() const { return m_count; }
+   int      GetTotalValue() const { return m_totalValueSupplied; }
    bool		IsStuckAdding() const 
    { 
 	   if( m_startedAdd == true ) 
@@ -265,8 +336,9 @@ private:
    ~ChainSupplyThread300() {}
 private:
    int	m_count;
+   int   m_totalValueSupplied;
    int	m_id;
-   bool m_startedAdd;
+   bool  m_startedAdd;
 };
 
 //-----------------------------------------------
@@ -498,21 +570,21 @@ void	Test300Suppliers( ChainSupplyThread300** arrayOfSuppliers, int numSuppliers
    int time = 12000;
    cout << "Testing 300 suppliers start for " << time/1000 << " seconds" << endl;
    ClearAllCounts( arrayOfSuppliers, numSuppliers, middleSupply, viewSupply );
-   
- ResumeSuppliers( arrayOfSuppliers, numSuppliers );
- Sleep( time );
- PauseSuppliers( arrayOfSuppliers, numSuppliers );
 
- OutputStuckThreads( arrayOfSuppliers, numSuppliers );
-cout << "Testing 300 suppliers end" << endl;
+   ResumeSuppliers( arrayOfSuppliers, numSuppliers );
+   Sleep( time );
+   PauseSuppliers( arrayOfSuppliers, numSuppliers );
 
-middleSupply->Pause();
-viewSupply->Pause();
-DisplayCounts( arrayOfSuppliers, numSuppliers, middleSupply, viewSupply );
-ClearAllCounts( arrayOfSuppliers, numSuppliers, middleSupply, viewSupply );
+   OutputStuckThreads( arrayOfSuppliers, numSuppliers );
+   cout << "Testing 300 suppliers end" << endl;
 
-middleSupply->Resume();
-viewSupply->Resume();
+   middleSupply->Pause();
+   viewSupply->Pause();
+   DisplayCounts( arrayOfSuppliers, numSuppliers, middleSupply, viewSupply );
+   ClearAllCounts( arrayOfSuppliers, numSuppliers, middleSupply, viewSupply );
+
+   middleSupply->Resume();
+   viewSupply->Resume();
 }
 
 //------------------------------------------------------------------------------------------------------
@@ -524,86 +596,86 @@ void Run300WithRandomDeletion( ChainSupplyThread300** arrayOfSuppliers, int numS
 
 	ClearAllCounts( arrayOfSuppliers, numSuppliers, middleSupply, viewSupply );
 
-     ResumeSuppliers( arrayOfSuppliers, numSuppliers );
+   ResumeSuppliers( arrayOfSuppliers, numSuppliers );
 
-     int tempPause = 2000;
-     if( tempPause > time )
-        tempPause = time;
-     Sleep( tempPause );
-     for( int i=0; i<30; i++ )
-     {
-        int which = rand() % numSuppliers;
-        if( arrayOfSuppliers[which] != NULL )
-        {
-           arrayOfSuppliers[which]->Cleanup();
-           arrayOfSuppliers[which] = NULL;
-        }
-     }
-     PauseSuppliers( arrayOfSuppliers, numSuppliers );
+   int tempPause = 2000;
+   if( tempPause > time )
+   tempPause = time;
+   Sleep( tempPause );
+   for( int i=0; i<30; i++ )
+   {
+      int which = rand() % numSuppliers;
+      if( arrayOfSuppliers[which] != NULL )
+      {
+         arrayOfSuppliers[which]->Cleanup();
+         arrayOfSuppliers[which] = NULL;
+      }
+   }
+   PauseSuppliers( arrayOfSuppliers, numSuppliers );
 
-     cout<< "Sleep after pausing remaining suppliers" << endl;
-     Sleep( time - tempPause );
-  OutputStuckThreads( arrayOfSuppliers, numSuppliers );
-  DisplayCounts( arrayOfSuppliers, numSuppliers, middleSupply, viewSupply );
-  cout << "Testing 300 suppliers, random deletion" << endl;
+   cout<< "Sleep after pausing remaining suppliers" << endl;
+   Sleep( time - tempPause );
+   OutputStuckThreads( arrayOfSuppliers, numSuppliers );
+   DisplayCounts( arrayOfSuppliers, numSuppliers, middleSupply, viewSupply );
+   cout << "Testing 300 suppliers, random deletion" << endl;
 }
 
 //------------------------------------------------------------------------------------------------------
 
 void	RandomlyArrivingAndLeavingConnections( ChainSupplyThread300** arrayOfSuppliers, int numSuppliers, ChainMiddleSupplyThread300* middleSupply, ChainViewThread300* viewSupply )
 {
-cout << "Prep for creating randomly coming and going clients 1 " << endl;
-ClearAllCounts( arrayOfSuppliers, numSuppliers, middleSupply, viewSupply );
-for( int i=0; i<numSuppliers; i++ )
-{
- if( arrayOfSuppliers[i] != NULL && rand()%2 )// 50/50 chance of deleting these
- {
-    arrayOfSuppliers[i]->Cleanup();
-    arrayOfSuppliers[i] = NULL;
- }
-}
+   cout << "Prep for creating randomly coming and going clients 1 " << endl;
+   ClearAllCounts( arrayOfSuppliers, numSuppliers, middleSupply, viewSupply );
+   for( int i=0; i<numSuppliers; i++ )
+   {
+      if( arrayOfSuppliers[i] != NULL && rand()%2 )// 50/50 chance of deleting these
+      {
+         arrayOfSuppliers[i]->Cleanup();
+         arrayOfSuppliers[i] = NULL;
+      }
+   }
 
-cout << "Prep for creating randomly coming and going clients 2 " << endl;
-Sleep( 2000 );
+   cout << "Prep for creating randomly coming and going clients 2 " << endl;
+   Sleep( 2000 );
 
-int numRunningSuppliers = 0;
-for( int i=0; i<numSuppliers; i++ )
-{
- if( arrayOfSuppliers[i] != NULL )
- {
-    arrayOfSuppliers[i]->Resume();
-    numRunningSuppliers ++;
- }
-}
+   int numRunningSuppliers = 0;
+   for( int i=0; i<numSuppliers; i++ )
+   {
+      if( arrayOfSuppliers[i] != NULL )
+      {
+         arrayOfSuppliers[i]->Resume();
+         numRunningSuppliers ++;
+      }
+   }
 
-cout << "-------------------------------------------------------" << endl;
-cout << "Start number of suppliers = " << numRunningSuppliers << endl;
-AddingSupplyThread* adder = new AddingSupplyThread( 180, arrayOfSuppliers, numSuppliers, middleSupply );
+   cout << "-------------------------------------------------------" << endl;
+   cout << "Start number of suppliers = " << numRunningSuppliers << endl;
+   AddingSupplyThread* adder = new AddingSupplyThread( 180, arrayOfSuppliers, numSuppliers, middleSupply );
 
-cout << "Creating randomly coming and going clients" << endl;
- Sleep( 12000 );
+   cout << "Creating randomly coming and going clients" << endl;
+   Sleep( 12000 );
 
- adder->Pause();
- numRunningSuppliers = 0;
- for( int i=0; i<numSuppliers; i++ )
- {
-    if( arrayOfSuppliers[i] != NULL )
-    {
-       arrayOfSuppliers[i]->Pause();
-       numRunningSuppliers ++;
-    }
- }
+   adder->Pause();
+   numRunningSuppliers = 0;
+   for( int i=0; i<numSuppliers; i++ )
+   {
+      if( arrayOfSuppliers[i] != NULL )
+      {
+         arrayOfSuppliers[i]->Pause();
+         numRunningSuppliers ++;
+      }
+   }
 
- cout << "Final number of suppliers = " << numRunningSuppliers << endl;
- cout << "num added = " << adder->GetNumAdded() << ", " << " num removed = " << adder->GetNumRemoved() << endl;
- 
- adder->Cleanup();
+   cout << "Final number of suppliers = " << numRunningSuppliers << endl;
+   cout << "num added = " << adder->GetNumAdded() << ", " << " num removed = " << adder->GetNumRemoved() << endl;
 
- PauseSuppliers( arrayOfSuppliers, numSuppliers );
+   adder->Cleanup();
 
-cout << "Creating randomly coming and going clients end" << endl;
+   PauseSuppliers( arrayOfSuppliers, numSuppliers );
 
-OutputStuckThreads( arrayOfSuppliers, numSuppliers );
+   cout << "Creating randomly coming and going clients end" << endl;
+
+   OutputStuckThreads( arrayOfSuppliers, numSuppliers );
 }
 
 //------------------------------------------------------------------------------------------------------
@@ -618,46 +690,66 @@ void	MultipleOutputConnections( ChainSupplyThread300** arrayOfSuppliers, int num
    ClearAllCounts( arrayOfSuppliers, numSuppliers, middleSupply, viewSupply );
 
    middleSupply->Pause();
-   const int numToTest = 100;
+   viewSupply->Pause();
 
+
+   ChainMiddleSupplyThread300_MultiThreadOutput* middleSupply2 = new ChainMiddleSupplyThread300_MultiThreadOutput( 250 );
+   ChainSupplyThread300* mainSupplier = new ChainSupplyThread300( 30 , 1200 );
+   middleSupply2->AddInputChain( mainSupplier );
+
+   const int numToTest = 100;   
    ChainViewThread300** arrayOfOutputThreads = new ChainViewThread300*[ numToTest ];
    for( int i=0; i< numToTest; i++ )
    {
 	   arrayOfOutputThreads[i] = new ChainViewThread300( 500 + i% 20 ); // adding some variance
 	   arrayOfOutputThreads[i]->Pause();
-	   middleSupply->AddOutputChain( arrayOfOutputThreads[i] );
+	   middleSupply2->AddOutputChain( arrayOfOutputThreads[i] );
    }
 
- /*  for( int i=0; i<numToTest; i++ )
-   {
-	  middleSupply->AcceptChainData( i% 10 );
-   }*/
-
-   cout << "Num put in middle = " << numToTest << " and number stored in middle: received = " << middleSupply->GetCountIn();
-   cout << ", sent = " << middleSupply->GetCountOut() << ", enqueue in = " << middleSupply->GetNumIn() << ", enqueue out = ";
-   cout << middleSupply->GetNumOut() << endl;
+   cout << "Num put in middle = " << numToTest << " and number stored in middle: received = " << middleSupply2->GetCountIn();
+   cout << ", sent = " << middleSupply2->GetCountOut() << ", enqueue in = " << middleSupply2->GetNumIn() << ", enqueue out = ";
+   cout << middleSupply2->GetNumOut() << endl;
 
    cout << "Now let it push it's data to the view " << endl;
-   middleSupply->Resume();
-   Sleep( 5000 );
 
-  /* cout << "Num put in middle = " << numToTest << " and number stored in middle: received = " << middleSupply->GetCountIn();
-   cout << ", sent = " << middleSupply->GetCountOut() << ", enqueue in = " << middleSupply->GetNumIn() << ", enqueue out = ";
-   cout << middleSupply->GetNumOut() << endl;
-   DisplayCounts( arrayOfSuppliers, numSuppliers, middleSupply, viewSupply );
+   //******************************
+      for( int i=0; i< numToTest; i++ )
+      {
+         arrayOfOutputThreads[i]->Resume();
+      }
+      middleSupply2->Resume();
+      mainSupplier->Resume();
+      Sleep( 5000 );
+      mainSupplier->Pause();
+      Sleep( 2000 );
+      middleSupply2->Pause();
+   /*   for( int i=0; i< numToTest; i++ )
+      {
+         arrayOfOutputThreads[i]->Pause();
+      }*/
+   //******************************
 
-   OutputStuckThreads( arrayOfSuppliers, numSuppliers );
+   cout << "Num put in middle = " << numToTest << " and number stored in middle: received = " << middleSupply2->GetCountIn();
+   cout << ", sent = " << middleSupply2->GetCountOut() << ", enqueue in = " << middleSupply2->GetNumIn() << ", enqueue out = ";
+   cout << middleSupply2->GetNumOut() << endl;
 
-   middleSupply->ClearCountIn();
-   middleSupply->ClearCountOut();
-   middleSupply->ClearPending();*/
+   int totalSent = mainSupplier->GetTotalValue();
+   int totalValueReceived = 0;
+   int totalCountReceived = 0;
 
-   middleSupply->Pause();
    for( int i=0; i< numToTest; i++ )
    {
-	   middleSupply->RemoveOutputChain( arrayOfOutputThreads[i] );
+	   middleSupply2->RemoveOutputChain( arrayOfOutputThreads[i] );
 	   arrayOfOutputThreads[i]->Pause();
+      totalValueReceived += arrayOfOutputThreads[i]->GetTotal();
+      totalCountReceived += arrayOfOutputThreads[i]->GetCountIn();
    }
+
+   cout << "Num items supplied: " << mainSupplier->GetCount() << endl;
+   cout << "Num items received: " << totalCountReceived << endl;
+   cout << "Total value sent: " << totalSent << endl;
+   cout << "time number of receiving threads: " << numToTest << endl;
+   cout << "total value received: " << totalValueReceived << endl;
 
    for( int i=0; i< numToTest; i++ )
    {
@@ -665,9 +757,10 @@ void	MultipleOutputConnections( ChainSupplyThread300** arrayOfSuppliers, int num
 	   arrayOfOutputThreads[i] = 0;
    }
 
-   delete [] arrayOfOutputThreads;
+   middleSupply2->Cleanup();
+   mainSupplier->Cleanup();
 
-   DisplayCounts( arrayOfSuppliers, numSuppliers, middleSupply, viewSupply );
+   delete [] arrayOfOutputThreads;
    cout << "Adding muliple output connections end" << endl;
 }
 
@@ -700,28 +793,28 @@ int  RunChainedThreads_300_Test()
       Sleep( 2000 );
       cout << "Items sent during quiescence = " << GetTotalSent( arrayOfSuppliers, numSuppliers ) << endl;
 	  
-	  cout << "-------------------------------------------------------" << endl;
-	  SimpleChainTest( arrayOfSuppliers, numSuppliers, middleSupply, viewSupply );
+      cout << "-------------------------------------------------------" << endl;
+      SimpleChainTest( arrayOfSuppliers, numSuppliers, middleSupply, viewSupply );
 
-	  cout << "-------------------------------------------------------" << endl;
-	  TestOnly10Suppliers( arrayOfSuppliers, numSuppliers, middleSupply, viewSupply );
+      cout << "-------------------------------------------------------" << endl;
+      TestOnly10Suppliers( arrayOfSuppliers, numSuppliers, middleSupply, viewSupply );
 
-	  cout << "-------------------------------------------------------" << endl;
+      cout << "-------------------------------------------------------" << endl;
       Test300Suppliers( arrayOfSuppliers, numSuppliers, middleSupply, viewSupply );
 
-	  cout << "-------------------------------------------------------" << endl;
+      cout << "-------------------------------------------------------" << endl;
       Run300WithRandomDeletion( arrayOfSuppliers, numSuppliers, middleSupply, viewSupply );
 
-	  cout << "-------------------------------------------------------" << endl;
+      cout << "-------------------------------------------------------" << endl;
 
       RandomlyArrivingAndLeavingConnections( arrayOfSuppliers, numSuppliers, middleSupply, viewSupply );
 
-	  cout << "-------------------------------------------------------" << endl;
+      cout << "-------------------------------------------------------" << endl;
 
       MultipleOutputConnections( arrayOfSuppliers, numSuppliers, middleSupply, viewSupply );
       
 
-	  cout << "-------------------------------------------------------" << endl;
+      cout << "-------------------------------------------------------" << endl;
       cout << "final cleanup" << endl;
       for( int i=0; i<numSuppliers; i++ )
       {

@@ -195,8 +195,9 @@ protected:
    typedef std::list< ChainedInterface* >		base_container;
    typedef typename base_container::iterator	ChainedIteratorType;
 
-   typedef std::list< OutputChain >						base_output_container;
-   typedef typename base_output_container::iterator		ChainedOutputIteratorType;
+   typedef std::list< OutputChain >						   base_output_container;
+   typedef typename base_output_container::iterator	ChainedOutputIteratorType;
+   typedef std::back_insert_iterator< std::deque< int > >  inserter;
 };
 
 /////////////////////////////////////////////////////////////////////////////
