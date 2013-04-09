@@ -1,13 +1,13 @@
 #pragma once // replaced the compile guards, this can be faster in VS2010 or earlier
 
 
-#ifdef _WIN32
+#if PLATFORM == PLATFORM_WINDOWS
 
 #include <windows.h>
 typedef HANDLE             ThreadMutex;
 typedef HANDLE             ThreadId;
 
-#else
+#elif PLATFORM == PLATFORM_MAC || PLATFORM == PLATFORM_UNIX
 
 #define _MULTI_THREADED
 #include <pthread.h>
@@ -147,7 +147,7 @@ private:
    int               CreateThread();
    int               DestroyThread();
 
-#ifdef _WIN32
+#if PLATFORM == PLATFORM_WINDOWS
    DWORD             m_threadId;
    static DWORD  WINAPI  ThreadFunction( void* data );
 #else

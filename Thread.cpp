@@ -6,7 +6,8 @@
 //
 
 #include "StdAfx.h"
-#if defined(_WIN32)
+#include "Platform.h"
+#if PLATFORM == PLATFORM_WINDOWS
 #else
 #endif
 
