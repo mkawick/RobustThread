@@ -120,7 +120,7 @@ public:
       m_items.clear();
       return 1;
    }
-   bool AcceptChainData( int value )
+   bool AddInputChainData( int value )
    {
 	  if( m_mutex.IsLocked() == true ) 
 		  return false;
@@ -186,7 +186,7 @@ public:
       return 0; 
    }
 
-   bool AcceptChainData( int value )
+   bool AddInputChainData( int value )
    {
       LockMutex();
       m_items.push_back( value );
@@ -234,6 +234,203 @@ public:
 private:
    ~ChainSupplyThread() {}
 };
+
+//-----------------------------------------------
+
+// note, we are not hooking backwards
+class ChainViewCircularThread : public CChainedThread< int >
+{
+public:
+   ChainViewCircularThread( int timeOut ) : CChainedThread( true, timeOut ){}
+
+   int       ProcessOutputFunction() 
+   { 
+      if( m_items.size() )
+      {
+         LockMutex();
+            ChainLinkIteratorType itInputs = m_listOfInputs.begin();
+            while( itInputs != m_listOfInputs.end() )
+            {
+               ChainLink& chainedOutput = *itInputs++;
+               ChainedInterface* chainedInterface = chainedOutput.m_interface;
+               std::list< int > ::iterator it = m_items.begin();
+               while( it != m_items.end() )
+               {
+                  chainedInterface->AddOutputChainData( *it++ );
+               }
+            }
+            m_items.clear();
+         UnlockMutex();
+      }
+      return 1;
+   }
+
+   bool AddInputChainData( int value )
+   {
+	  if( m_mutex.IsLocked() == true ) 
+		  return false;
+
+      LockMutex();
+      m_items.push_back( value );
+      UnlockMutex();
+
+	  return true;
+   }
+
+   int GetNumItems() const
+   {
+      LockMutex();
+      return static_cast<int>( m_items.size() );
+      UnlockMutex();
+   }
+
+private:
+   ~ChainViewCircularThread() {}
+
+private:
+   list< int > m_items;
+};
+
+class ChainMiddleSupplyCircularThread : public CChainedThread< int >
+{
+public:
+   ChainMiddleSupplyCircularThread( int timeOut ) : CChainedThread( false, timeOut ){}
+
+   int       ProcessInputFunction() 
+   { 
+      return 0; 
+   }
+
+   int       ProcessOutputFunction() 
+   { 
+      LockMutex();
+
+         if( m_items.size() )
+         {
+            ChainLinkIteratorType itOutputs = m_listOfOutputs.begin();
+            while( itOutputs != m_listOfOutputs.end() )
+            {
+               ChainLink& chainedOutput = *itOutputs++;
+		         ChainedInterface* chainedInterface = chainedOutput.m_interface;
+               std::list< int > ::iterator it = m_items.begin();
+               while( it != m_items.end() )
+               {
+                  chainedInterface->AddInputChainData( *it++ );
+               }
+            }
+            m_items.clear();
+         }
+         if( m_itemsOut.size() )
+         {
+            ChainLinkIteratorType itInputs = m_listOfInputs.begin();
+            while( itInputs != m_listOfInputs.end() )
+            {
+               ChainLink& chainedOutput = *itInputs++;
+		         ChainedInterface* chainedInterface = chainedOutput.m_interface;
+               std::list< int > ::iterator it = m_itemsOut.begin();
+               while( it != m_itemsOut.end() )
+               {
+                  chainedInterface->AddOutputChainData( *it++ );
+               }
+            }
+            m_itemsOut.clear();
+         }
+
+      UnlockMutex();
+      return 0; 
+   }
+
+   bool AddInputChainData( int value )
+   {
+      LockMutex();
+      m_items.push_back( value );
+      UnlockMutex();
+
+	  return true;
+   }
+
+   bool AddOutputChainData( int t )
+   {
+      LockMutex();
+      m_itemsOut.push_back( t );
+      UnlockMutex();
+
+	   return true;
+   }
+
+   int GetNumItems() const
+   {
+      LockMutex();
+      return static_cast<int>( m_items.size() );
+      UnlockMutex();
+   }
+
+private:
+   ~ChainMiddleSupplyCircularThread() {}
+
+private:
+   list< int > m_items;
+   list< int > m_itemsOut;
+};
+
+
+class ChainSupplyCircularThread : public CChainedThread< int >
+{
+public:
+   ChainSupplyCircularThread( int timeOut, int numToSupply ) : 
+      CChainedThread( false, timeOut ), 
+      m_numToSupply( numToSupply ), 
+      m_hasSent( false ){}
+
+   int       ProcessOutputFunction() 
+   {
+      if( m_hasSent == true )
+         return 0;
+
+      ChainLinkIteratorType itOutputs = m_listOfOutputs.begin();
+      while( itOutputs != m_listOfOutputs.end() )
+      {
+         ChainLink& chainedOutput = *itOutputs++;
+		   ChainedInterface* chainedInterface = chainedOutput.m_interface;
+         for( int i=0; i< m_numToSupply; i++ )
+         {
+            int value = rand() % 25 + 1;
+            chainedInterface->AddInputChainData( value );
+            m_itemsSent.push_back( value );
+         }
+      }
+      m_hasSent = true;
+      return 0; 
+   }
+
+   bool AddOutputChainData( int t )
+   {
+      LockMutex();
+      m_itemsReturned.push_back( t );
+      UnlockMutex();
+      return true;
+   }
+
+   bool  AreQueuesEqual() const 
+   {
+      int num = m_itemsReturned.size();// guaranteed to be smaller than the items sent
+      for( int i=0; i< num; i++ )
+      {
+         if( m_itemsReturned[i] != m_itemsSent[i] )
+            return false;
+      }
+      return true;
+   }
+
+private:
+   ~ChainSupplyCircularThread() {}
+
+   bool  m_hasSent;
+   int   m_numToSupply;
+   deque< int > m_itemsSent;
+   deque< int > m_itemsReturned;
+};
+
 //-----------------------------------------------
 //-----------------------------------------------
 
@@ -369,9 +566,41 @@ int  RunChainedThreads03Test()// cleanup test
 
 //-----------------------------------------------
 
+bool RunCircularChainedThreadsTest()
+{
+   int numItemsToSend = 10;
+   cout << "Circular thread test start" << endl;
+   ChainViewCircularThread* threadView = new ChainViewCircularThread( 50 );
+   ChainMiddleSupplyCircularThread* threadMiddleSupply = new ChainMiddleSupplyCircularThread( 20 );
+   ChainSupplyCircularThread* threadSupply = new ChainSupplyCircularThread( 100, numItemsToSend );
+
+   threadView->AddInputChain( threadMiddleSupply );
+   threadSupply->AddOutputChain( threadMiddleSupply );
+   
+   Sleep( 1000 );
+
+   threadSupply->Pause();
+   threadView->Pause();
+   threadMiddleSupply->Pause();
+
+   bool isEqual = threadSupply->AreQueuesEqual();
+   cout << "Number of items supplied were " << numItemsToSend << endl;
+   cout << " Did we receive the same data back " << isEqual << endl;
+
+   threadSupply->Cleanup();
+   threadView->Cleanup();
+   threadMiddleSupply->Cleanup();
+
+   cout << "Circular thread test end" << endl;
+
+   return isEqual;
+}
+
 int __main()
 {
    cout << "Beginning all tests" << endl;
+
+   if( RunCircularChainedThreadsTest() == false ) cout << "Circular chain failed" << endl;
  /*  if( RunCounterThread() == false ) cout << "Counter failed" << endl;
    if( RunInsertThread() == false ) cout << "Insertion failed" << endl;
 
@@ -382,7 +611,7 @@ int __main()
 
    if( RunChainedThreads03Test() == false ) cout << "Chained 03 failed" << endl;*/
 
-   if( RunChainedThreads_300_Test() == false ) cout << "RunChainedThreads_300_Test failed" << endl;
+   //if( RunChainedThreads_300_Test() == false ) cout << "RunChainedThreads_300_Test failed" << endl;
 
    cout << "all tests complete" << endl;
    cout << "press any key to exit" << endl;
