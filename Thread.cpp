@@ -6,7 +6,8 @@
 //
 
 #include "StdAfx.h"
-#if defined(_WIN32)
+#include "Platform.h"
+#if PLATFORM == PLATFORM_WINDOWS
 #else
 #endif
 
@@ -25,7 +26,7 @@ Mutex::Mutex() :
       m_isLocked( false ),
 	  m_pendingLockReqs( 0 )
 {
-#ifdef WIN32
+#if PLATFORM == PLATFORM_WINDOWS
    m_mutex = CreateMutex( 
         NULL,              // default security attributes
         FALSE,             // initially not owned
@@ -41,7 +42,7 @@ Mutex::~Mutex()
 {
    // WAIT_OBJECT_0
    // WAIT_ABANDONED
-#ifdef WIN32
+#if PLATFORM == PLATFORM_WINDOWS
    DWORD dwWaitResult = WaitForSingleObject(
                                             m_mutex,
                                             timeoutUponDeleteMs);  // time-out interval
@@ -57,7 +58,7 @@ Mutex::~Mutex()
 bool  Mutex::lock()
 {
    m_pendingLockReqs++;
-#ifdef WIN32
+#if PLATFORM == PLATFORM_WINDOWS
    DWORD dwWaitResult = WaitForSingleObject( m_mutex, mutexTimeout );
    // many error conditions including timeout.
 #else
@@ -75,7 +76,7 @@ bool  Mutex::unlock()
    m_isLocked = false;
    m_pendingLockReqs--;
 
-#ifdef WIN32
+#if PLATFORM == PLATFORM_WINDOWS
    if( ReleaseMutex( m_mutex ) )
       return true;
 #else
@@ -96,7 +97,7 @@ CAbstractThread::CAbstractThread( bool needsThreadProtections, int sleepTime, bo
                   m_markedForCleanup( false ),
                   m_isPaused( paused )
 {
-#ifdef WIN32
+#if PLATFORM == PLATFORM_WINDOWS
    m_threadId = 0;
 #endif
    
@@ -124,7 +125,7 @@ void  CAbstractThread::Cleanup()
 
 void  CAbstractThread::SetPriority( ePriority priority )
 {
-#ifdef WIN32
+#if PLATFORM == PLATFORM_WINDOWS
    int winPriority = THREAD_PRIORITY_NORMAL;
 #else
    sched_param param;
@@ -134,7 +135,7 @@ void  CAbstractThread::SetPriority( ePriority priority )
    switch( priority )
    {
    case ePriorityLow:
-#ifdef WIN32
+#if PLATFORM == PLATFORM_WINDOWS
       winPriority = THREAD_PRIORITY_BELOW_NORMAL;
 #else
       param.sched_priority = sched_get_priority_min( SCHED_OTHER );
@@ -146,7 +147,7 @@ void  CAbstractThread::SetPriority( ePriority priority )
       break;
 
    case ePriorityHigh:
-#ifdef WIN32
+#if PLATFORM == PLATFORM_WINDOWS
       winPriority = THREAD_PRIORITY_ABOVE_NORMAL;
 #else
       param.sched_priority = sched_get_priority_max( SCHED_OTHER );
@@ -157,7 +158,7 @@ void  CAbstractThread::SetPriority( ePriority priority )
       assert( 0 );
    }
    
-#ifdef WIN32
+#if PLATFORM == PLATFORM_WINDOWS
    SetThreadPriority( m_thread, winPriority );
 #else
    //sched_param param;
@@ -208,7 +209,7 @@ int CAbstractThread::DestroyThread()
 
 //----------------------------------------------------------------
 
-#ifdef WIN32
+#if PLATFORM == PLATFORM_WINDOWS
 DWORD    CAbstractThread::ThreadFunction( void* data )
 #else
 void*    CAbstractThread::ThreadFunction( void* data )
@@ -254,7 +255,7 @@ void*    CAbstractThread::ThreadFunction( void* data )
 
    if( thread->m_markedForCleanup )
    {
-#ifdef WIN32
+#if PLATFORM == PLATFORM_WINDOWS
       DWORD dwWaitResult = WaitForSingleObject(  thread->m_thread, timeoutUponDeleteMs );
       CloseHandle( thread->m_thread );
 #else
@@ -266,7 +267,7 @@ void*    CAbstractThread::ThreadFunction( void* data )
 	   Sleep( 200 );
    delete thread;
 
-#ifdef WIN32
+#if PLATFORM == PLATFORM_WINDOWS
    return 0;
 #else
    pthread_exit( 0 );
