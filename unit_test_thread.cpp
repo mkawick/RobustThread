@@ -169,15 +169,15 @@ public:
       LockMutex();
 
          //int num = m_item.size();
-         ChainedOutputIteratorType itOutputs = m_listOfOutputs.begin();
+         ChainLinkIteratorType itOutputs = m_listOfOutputs.begin();
          while( itOutputs != m_listOfOutputs.end() )
          {
-            OutputChain& chainedOutput = *itOutputs++;
-		    ChainedInterface* chainedInterface = chainedOutput.m_interface;
+            ChainLink& chainedOutput = *itOutputs++;
+		      ChainedInterface* chainedInterface = chainedOutput.m_interface;
             std::list< int > ::iterator it = m_items.begin();
             while( it != m_items.end() )
             {
-               chainedInterface->AcceptChainData( *it++ );
+               chainedInterface->AddInputChainData( *it++ );
             }
          }
          m_items.clear();
@@ -218,14 +218,14 @@ public:
    int       ProcessOutputFunction() 
    { 
       //cout<< "· ChainSupplyThread::ProcessOutputFunction ·"  << endl;
-      ChainedOutputIteratorType itOutputs = m_listOfOutputs.begin();
+      ChainLinkIteratorType itOutputs = m_listOfOutputs.begin();
       while( itOutputs != m_listOfOutputs.end() )
       {
-         OutputChain& chainedOutput = *itOutputs++;
-		 ChainedInterface* chainedInterface = chainedOutput.m_interface;
+         ChainLink& chainedOutput = *itOutputs++;
+		   ChainedInterface* chainedInterface = chainedOutput.m_interface;
          for( int i=0; i< 10; i++ )
          {
-            chainedInterface->AcceptChainData( rand() % 25 + 1 );
+            chainedInterface->AddInputChainData( rand() % 25 + 1 );
          }
       }
       return 0; 

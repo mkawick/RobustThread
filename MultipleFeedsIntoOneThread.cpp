@@ -54,7 +54,7 @@ public:
 
       return 1;
    }
-   bool		AcceptChainData( int value )
+   bool		AddInputChainData( int value )
    {
 	  if( m_mutex.IsLocked() )
 		  return false;
@@ -123,10 +123,10 @@ public:
    {
 	  MutexLock lock( m_mutex );
          
-         ChainedOutputIteratorType itOutputs = m_listOfOutputs.begin();
+         ChainLinkIteratorType itOutputs = m_listOfOutputs.begin();
          //while( itOutputs != m_listOfOutputs.end() )
          {
-			OutputChain& chainedOutput = *itOutputs++;
+			ChainLink& chainedOutput = *itOutputs++;
 			ChainedInterface* chainedInterface = chainedOutput.m_interface;
 			int num = static_cast<int>( m_itemsOut.size() );
 			int numAcceptedItems = 0;
@@ -136,7 +136,7 @@ public:
 			for( int i=0; i<num; i++ )
 			{
 				int val = m_itemsOut.front();
-				if( chainedInterface->AcceptChainData( val ) == false )
+				if( chainedInterface->AddInputChainData( val ) == false )
 				{
 					break;
 				}
@@ -152,7 +152,7 @@ public:
       return 0; 
    }
 
-   bool  AcceptChainData( int value )
+   bool  AddInputChainData( int value )
    {
 	  if( m_inputMutex.IsLocked() == true )
 		  return false;
@@ -236,10 +236,10 @@ public:
    int		 ProcessInputFunction()
    {
 	   m_inputMutex.lock(); LockMutex();
-      ChainedOutputIteratorType itOutputs = m_listOfOutputs.begin();
+      ChainLinkIteratorType itOutputs = m_listOfOutputs.begin();
       while( itOutputs != m_listOfOutputs.end() )
       {
-		   OutputChain& chainedOutput = *itOutputs++;
+		   ChainLink& chainedOutput = *itOutputs++;
 		   ChainedInterface* chainedInterface = chainedOutput.m_interface;
          std::copy( m_itemsIn.begin(), m_itemsIn.end(), inserter( chainedOutput.m_data ));
       }
@@ -252,10 +252,10 @@ public:
    {
 	  MutexLock lock( m_mutex );
          
-         ChainedOutputIteratorType itOutputs = m_listOfOutputs.begin();
+         ChainLinkIteratorType itOutputs = m_listOfOutputs.begin();
          while( itOutputs != m_listOfOutputs.end() )
          {
-			   OutputChain& chainedOutput = *itOutputs++;
+			   ChainLink& chainedOutput = *itOutputs++;
 			   ChainedInterface* chainedInterface = chainedOutput.m_interface;
             std::deque< int >& deque = chainedOutput.m_data;
 
@@ -267,7 +267,7 @@ public:
 			   for( int i=0; i<num; i++ )
 			   {
 				   int val = deque.front();
-				   if( chainedInterface->AcceptChainData( val ) == false )
+				   if( chainedInterface->AddInputChainData( val ) == false )
 				   {
 					   break;
 				   }
@@ -300,18 +300,18 @@ public:
 
    int       ProcessOutputFunction() 
    {
-      //ChainedIteratorType	itOutputs = m_listOfOutputs.begin();
-      ChainedOutputIteratorType itOutputs = m_listOfOutputs.begin();
+      //ChainLinkIteratorType	itOutputs = m_listOfOutputs.begin();
+      ChainLinkIteratorType itOutputs = m_listOfOutputs.begin();
       while( itOutputs != m_listOfOutputs.end() )
       {
-         OutputChain& chainedOutput = *itOutputs++;
+         ChainLink& chainedOutput = *itOutputs++;
          ChainedInterface* chainedInterface = chainedOutput.m_interface;
          int num = rand() % 10 + 1;
          for( int i=0; i< num; i++ )
          {
             m_startedAdd = true;
             int value = m_count % 25 + 1;
-            bool result = chainedInterface->AcceptChainData( value );
+            bool result = chainedInterface->AddInputChainData( value );
             m_startedAdd = false;
             if( result == false )
 	            break;
@@ -518,7 +518,7 @@ void	SimpleChainTest( ChainSupplyThread300** arrayOfSuppliers, int numSuppliers,
 
    for( int i=0; i<numToTest; i++ )
    {
-	  middleSupply->AcceptChainData( i% 10 );
+	  middleSupply->AddInputChainData( i% 10 );
    }
 
    cout << "Num put in middle = " << numToTest << " and number stored in middle: received = " << middleSupply->GetCountIn();

@@ -1,13 +1,13 @@
 #pragma once // replaced the compile guards, this can be faster in VS2010 or earlier
 
 
-#ifdef _WIN32
+#if PLATFORM == PLATFORM_WINDOWS
 
 #include <windows.h>
 typedef HANDLE             ThreadMutex;
 typedef HANDLE             ThreadId;
 
-#else
+#elif PLATFORM == PLATFORM_MAC || PLATFORM == PLATFORM_UNIX
 
 #define _MULTI_THREADED
 #include <pthread.h>
@@ -111,7 +111,7 @@ public:
    void              SetPriority( ePriority );
    bool              IsRunning() const { return m_running; }
    bool              IsThreadLocked() const { return m_mutex.IsLocked(); }
-   int				 GetSleepTime() const { return m_sleepTime; }
+   int				   GetSleepTime() const { return m_sleepTime; }
 
    void              Pause() { m_isPaused = true; }
    void              Resume() { m_isPaused = false; }
@@ -147,12 +147,16 @@ private:
    int               CreateThread();
    int               DestroyThread();
 
-#ifdef _WIN32
+#if PLATFORM == PLATFORM_WINDOWS
+
    DWORD             m_threadId;
    static DWORD  WINAPI  ThreadFunction( void* data );
-#else
+
+#elif PLATFORM == PLATFORM_MAC || PLATFORM == PLATFORM_UNIX
+
    pthread_attr_t    m_attr;
    static void*      ThreadFunction( void* data );
+
 #endif
 };
 
@@ -164,19 +168,20 @@ template <typename Type>
 class ChainedInterface
 {
 public:
-   void  AddInputChain( ChainedInterface*, bool recurse = true );
-   void  RemoveInputChain( ChainedInterface*, bool recurse = true );
-   void  AddOutputChain( ChainedInterface*, bool recurse = true );
-   void  RemoveOutputChain( ChainedInterface*, bool recurse = true );
+   void     AddInputChain( ChainedInterface*, bool recurse = true );
+   void     RemoveInputChain( ChainedInterface*, bool recurse = true );
+   void     AddOutputChain( ChainedInterface*, bool recurse = true );
+   void     RemoveOutputChain( ChainedInterface*, bool recurse = true );
 
    // TODO: convert this to a const reference instead
-   virtual bool AcceptChainData( Type t ) { return false; }// a false value means that the data was rejected
+   virtual bool AddInputChainData( Type t ) { return false; }// a false value means that the data was rejected
+   virtual bool AddOutputChainData( Type t ) { return false; }// a false value means that the data was rejected
 
 protected:
-	struct OutputChain // a trick here is to read from the front and push to the back. No mutex?
+	struct ChainLink // a trick here is to read from the front and push to the back. No mutex?
 	{
-		OutputChain() : m_interface( NULL ) {}
-		OutputChain( ChainedInterface* obj ) : m_interface( obj ) {}
+		ChainLink() : m_interface( NULL ) {}
+		ChainLink( ChainedInterface* obj ) : m_interface( obj ) {}
 
 		void	AddData( Type t) { m_data.push_back( t ); }
 		Type	RemoveData() { Type t = m_data.front(); m_data.pop_front(); return t; }
@@ -185,20 +190,21 @@ protected:
 		std::deque<Type>	m_data;
 		//Mutex				m_mutex;
 	};
+
+   virtual  void  NotifyFinishedAdding() {}
+   virtual  void  NotifyFinishedRemoving() {}
+
 protected:
    Mutex       m_inputChainListMutex;
    Mutex       m_outputChainListMutex;
 
-   std::list< ChainedInterface* >	m_listOfInputs;// threads
-   std::list< OutputChain >			m_listOfOutputs;// threads
+   std::list< ChainLink >	m_listOfInputs;// threads
+   std::list< ChainLink >	m_listOfOutputs;// threads
 
    void  CleanupAllChainDependencies();
-   	
-   typedef std::list< ChainedInterface* >		base_container;
-   typedef typename base_container::iterator	ChainedIteratorType;
 
-   typedef std::list< OutputChain >						   base_output_container;
-   typedef typename base_output_container::iterator	ChainedOutputIteratorType;
+   typedef std::list< ChainLink >						   BaseOutputContainer;
+   typedef typename BaseOutputContainer::iterator	   ChainLinkIteratorType;
    typedef std::back_insert_iterator< std::deque< int > >  inserter;
 };
 
