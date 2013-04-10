@@ -134,9 +134,12 @@ public:
 
    int GetNumItems() const
    {
+      int numItems = 0;
       LockMutex();
-      return static_cast<int>( m_items.size() );
+      numItems = static_cast<int>( m_items.size() );
       UnlockMutex();
+
+      return numItems;
    }
 
 private:
@@ -196,9 +199,12 @@ public:
    }
    int GetNumItems() const
    {
+      int num = 0;
       LockMutex();
-      return static_cast<int>( m_items.size() );
+      num = static_cast<int>( m_items.size() );
       UnlockMutex();
+
+      return num;
    }
 
 private:
@@ -279,9 +285,11 @@ public:
 
    int GetNumItems() const
    {
+      int num = 0;
       LockMutex();
-      return static_cast<int>( m_items.size() );
+      num = static_cast<int>( m_items.size() );
       UnlockMutex();
+      return num;
    }
 
 private:
@@ -360,9 +368,11 @@ public:
 
    int GetNumItems() const
    {
+      int num = 0;
       LockMutex();
-      return static_cast<int>( m_items.size() );
+      num = static_cast<int>( m_items.size() );
       UnlockMutex();
+      return num;
    }
 
 private:
@@ -429,6 +439,114 @@ private:
    int   m_numToSupply;
    deque< int > m_itemsSent;
    deque< int > m_itemsReturned;
+};
+//-----------------------------------------------
+
+class ChainObserverThread : public CChainedThread< int >
+{
+public:
+   ChainObserverThread( int timeOut ) : 
+      CChainedThread( true, timeOut ), 
+      m_isDataAvailable( false ), 
+      m_numItemsProcessed( 0 ){}
+
+
+   bool  PushInputEvent( Threading::ThreadEvent* te )
+   {
+      switch( te->type )
+      {
+      case Threading::ThreadEvent_DataAvailable:
+         int id = te->identifier;
+         m_isDataAvailable = true;
+         delete te;
+         return true;
+      }
+
+      return false;
+   }
+   void  ProcessEvents()
+   {
+      if( m_isDataAvailable == false )
+         return;
+
+     /* ChainLinkIteratorType itOutputs = m_listOfOutputs.begin();
+      while( itOutputs != m_listOfOutputs.end() )
+      {
+         ChainLink& chainedOutput = *itOutputs++;
+		   ChainedInterface* chainedInterface = chainedOutput.m_interface;
+      }*/
+      LockMutex();
+      m_numItemsProcessed = m_items.size();
+      UnlockMutex();
+      m_isDataAvailable = false;
+
+      CChainedThread::ProcessEvents();
+   }
+
+   bool  AddInputChainData( int value )
+   {
+	  if( m_mutex.IsLocked() == true ) 
+		  return false;
+
+      LockMutex();
+      m_items.push_back( value );
+      UnlockMutex();
+
+	  return true;
+   }
+
+   int GetNumItemsProcessed() const
+   {
+      return m_numItemsProcessed;
+   }
+
+private:
+   ~ChainObserverThread() {}
+
+private:
+   list< int > m_items;
+   int   m_numItemsProcessed;
+   bool  m_isDataAvailable;
+};
+
+class ChainControllerThread : public CChainedThread< int >
+{
+public:
+   ChainControllerThread( int timeOut ) : 
+      CChainedThread( false, timeOut ), 
+      m_needsToSend( true ){}
+
+
+   int       ProcessOutputFunction() 
+   { 
+      //cout<< "· ChainSupplyThread::ProcessOutputFunction ·"  << endl;
+      ChainLinkIteratorType itOutputs = m_listOfOutputs.begin();
+      while( itOutputs != m_listOfOutputs.end() )
+      {
+         ChainLink& chainedOutput = *itOutputs++;
+		   ChainedInterface* chainedInterface = chainedOutput.m_interface;
+         bool sent = false;
+         for( int i=0; i< 10; i++ )
+         {
+            sent |= chainedInterface->AddInputChainData( rand() % 25 + 1 );
+         }
+
+         if( sent && m_needsToSend == true )
+         {
+            ThreadEvent* event = new ThreadEvent();
+            event->type = ThreadEvent_DataAvailable;
+            event->identifier = 0xff;
+            chainedInterface->PushInputEvent( event );
+            m_needsToSend = false;
+         }
+      }
+      return 0; 
+   }
+
+private:
+   ~ChainControllerThread() {}
+
+   bool  m_needsToSend;
 };
 
 //-----------------------------------------------
@@ -596,11 +714,45 @@ bool RunCircularChainedThreadsTest()
    return isEqual;
 }
 
+//-----------------------------------------------
+
+bool RunEventTest()
+{
+   cout << "Event thread test start" << endl;
+
+   ChainObserverThread* observer = new ChainObserverThread ( 50 );
+   ChainControllerThread* controller = new ChainControllerThread( 200 );
+
+   cout << "here we go" << endl;
+
+   controller->Pause();
+   controller->AddOutputChain( observer );
+   controller->Resume();
+   
+   Sleep( 500 );
+
+   bool result = true;
+   if( observer->GetNumItemsProcessed() < 10 )
+   {
+      cout << "Event failed" << endl;
+      result = false;
+   }
+   else
+   {
+      cout << "Event worked" << endl;
+   }
+   cout << "Event thread test end" << endl;
+   return result;
+}
+
+//-----------------------------------------------
+
 int __main()
 {
    cout << "Beginning all tests" << endl;
 
-   if( RunCircularChainedThreadsTest() == false ) cout << "Circular chain failed" << endl;
+   if( RunEventTest() == false ) cout << "Event chain failed" << endl;
+   //if( RunCircularChainedThreadsTest() == false ) cout << "Circular chain failed" << endl;
  /*  if( RunCounterThread() == false ) cout << "Counter failed" << endl;
    if( RunInsertThread() == false ) cout << "Insertion failed" << endl;
 

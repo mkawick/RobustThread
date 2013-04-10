@@ -42,7 +42,7 @@ void  ChainedInterface<Type>::AddInputChain( ChainedInterface<Type>* chainedInte
    {
       chainedInterfaceObject->AddOutputChain( this, false ); // note, output
    }
-   NotifyFinishedAdding();
+   NotifyFinishedAdding( chainedInterfaceObject );
 }
 
 //----------------------------------------------------------------
@@ -80,7 +80,7 @@ void  ChainedInterface<Type>::RemoveInputChain( ChainedInterface<Type>* chainedI
    {
       chainedInterfaceObject->RemoveOutputChain( this, false ); // note, output
    }
-   NotifyFinishedRemoving();
+   NotifyFinishedRemoving( chainedInterfaceObject );
 }
 
 //----------------------------------------------------------------
@@ -119,7 +119,7 @@ void  ChainedInterface<Type>::AddOutputChain( ChainedInterface<Type>* chainedInt
    {
       chainedInterfaceObject->AddInputChain( this, false ); // note, input
    }
-   NotifyFinishedAdding();
+   NotifyFinishedAdding( chainedInterfaceObject );
 }
 
 //----------------------------------------------------------------
@@ -157,7 +157,7 @@ void  ChainedInterface<Type>::RemoveOutputChain( ChainedInterface<Type>* chained
    {
       chainedInterfaceObject->RemoveInputChain( this, false );// note, input
    }
-   NotifyFinishedRemoving();
+   NotifyFinishedRemoving( chainedInterfaceObject );
 }
 
 //----------------------------------------------------------------
@@ -181,7 +181,6 @@ void  ChainedInterface<Type>::CleanupAllChainDependencies()
       // the indentation here is to show that we are in the 'scope' of the locks
    }
    m_inputChainListMutex.unlock();
-   NotifyFinishedAdding();
 
    //-------------------------------
 
@@ -201,8 +200,37 @@ void  ChainedInterface<Type>::CleanupAllChainDependencies()
       // the indentation here is to show that we are in the 'scope' of the locks
    }
    m_outputChainListMutex.unlock();
-
    NotifyFinishedRemoving();
+}
+
+//----------------------------------------------------------------
+
+template <typename Type> 
+void     ChainedInterface<Type>::CleanupAllEvents()
+{
+   m_inputChainListMutex.lock();
+   int num = m_eventsIn.size();
+   while( num -- )
+   {
+      ThreadEvent* event = m_eventsIn.front();
+      m_eventsIn.pop_front();
+      delete event;
+   }
+
+   num = m_eventsOut.size();
+   while( num -- )
+   {
+      ThreadEvent* event = m_eventsOut.front();
+      m_eventsOut.pop_front();
+      delete event;
+   }
+   m_inputChainListMutex.unlock();
+}
+
+template <typename Type> 
+void     ChainedInterface<Type>::ProcessEvents()
+{
+   CleanupAllEvents();
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -227,6 +255,8 @@ void  CChainedThread<Type>::CallbackOnCleanup()
 template <typename Type> 
 int       CChainedThread<Type>::CallbackFunction()
 {
+   ProcessEvents();
+
    CChainedThread<Type>::m_inputChainListMutex.lock();
    ProcessInputFunction();
    CChainedThread<Type>::m_inputChainListMutex.unlock();

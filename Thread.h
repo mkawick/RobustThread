@@ -162,6 +162,27 @@ private:
 
 /////////////////////////////////////////////////////////////////////////////
 
+enum ThreadEventType
+{
+   ThreadEvent_None,
+   ThreadEvent_NeedsService,
+   ThreadEvent_DataAvailable
+};
+
+class ThreadEvent
+{
+public:
+   ThreadEvent() : type(0), subType(0), meta(0) {}
+   virtual ~ThreadEvent() { delete meta; }
+
+   int      type;// custom
+   int      subType;// custom
+   int      identifier;
+   void*    meta;
+};
+
+/////////////////////////////////////////////////////////////////////////////
+
    // this is a strange feature, but while rare, the importance of providing a clean
    // mechanism for allowing threads to chain and unchain correctly became obvious during test
 template <typename Type> 
@@ -177,7 +198,11 @@ public:
    virtual bool AddInputChainData( Type t ) { return false; }// a false value means that the data was rejected
    virtual bool AddOutputChainData( Type t ) { return false; }// a false value means that the data was rejected
 
+   virtual bool PushInputEvent( ThreadEvent* ) { return false; }
+   virtual bool PushOutputEvent( ThreadEvent* ) { return false; }
+
 protected:
+
 	struct ChainLink // a trick here is to read from the front and push to the back. No mutex?
 	{
 		ChainLink() : m_interface( NULL ) {}
@@ -185,14 +210,15 @@ protected:
 
 		void	AddData( Type t) { m_data.push_back( t ); }
 		Type	RemoveData() { Type t = m_data.front(); m_data.pop_front(); return t; }
+      bool  HasData() const { return m_data.size() > 0; }
 
 		ChainedInterface*	m_interface;
 		std::deque<Type>	m_data;
 		//Mutex				m_mutex;
 	};
 
-   virtual  void  NotifyFinishedAdding() {}
-   virtual  void  NotifyFinishedRemoving() {}
+   virtual  void  NotifyFinishedAdding( ChainedInterface* obj = NULL ) {} 
+   virtual  void  NotifyFinishedRemoving( ChainedInterface* obj = NULL ) {} // when NULL, this means all nodes have been removed
 
 protected:
    Mutex       m_inputChainListMutex;
@@ -200,6 +226,10 @@ protected:
 
    std::list< ChainLink >	m_listOfInputs;// threads
    std::list< ChainLink >	m_listOfOutputs;// threads
+
+   std::deque< ThreadEvent* >	m_eventsIn, m_eventsOut;
+   void  CleanupAllEvents();
+   virtual void   ProcessEvents();
 
    void  CleanupAllChainDependencies();
 
