@@ -114,7 +114,7 @@ public:
    int				   GetSleepTime() const { return m_sleepTime; }
 
    void              Pause() { m_isPaused = true; }
-   void              Resume() { m_isPaused = false; }
+   void              Resume() { m_isPaused = false; if( m_thread == NULL ) CreateThread(); }
 
    // inherited classes must provide ths function
    virtual int       CallbackFunction() = 0;

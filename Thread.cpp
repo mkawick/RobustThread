@@ -5,7 +5,6 @@
 //  Copyright (c) 2013 Playdek games. All rights reserved.
 //
 
-#include "StdAfx.h"
 #include "Platform.h"
 #if PLATFORM == PLATFORM_WINDOWS
 #else
@@ -100,8 +99,6 @@ CAbstractThread::CAbstractThread( bool needsThreadProtections, int sleepTime, bo
 #if PLATFORM == PLATFORM_WINDOWS
    m_threadId = 0;
 #endif
-   
-   CreateThread();
 }
 
 //----------------------------------------------------------------
@@ -116,6 +113,7 @@ void  CAbstractThread::Cleanup()
    DestroyThread();
    
 #ifndef WIN32
+   if( m_thread )
    void* result;
    pthread_join( m_thread, &result );
 #endif
