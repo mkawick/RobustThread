@@ -202,6 +202,10 @@
 				RelativePath=".\Thread.cpp"
 				>
 			</File>
+			<File
+				RelativePath=".\unit_test_thread.cpp"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"
